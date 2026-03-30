@@ -17,57 +17,11 @@ Tasks - description, duration, priority, category [Methods - edit task, get crit
 Scheduler - time available, task list, add new tasks, get/generate plan [Methods - set daily limit, edit schedule]
 Owner - Name, daily time available [Methods - add new task, generate plan, explain plan]
 
-
-classDiagram
-direction LR
-
-class Owner {
-  +name: String
-  +dailyTimeAvailable: float
-  +addNewTask(task: Task)
-  +generatePlan(scheduler: Scheduler)
-  +explainPlan()
-}
-
-class Pet {
-  +name: String
-  +species: String
-  +energyLevel: String
-  +dietaryNeeds: String
-  +medicalNeeds: String
-  +otherNotes: String
-  +updateProfile()
-  +getNeedsSummary(): String
-}
-
-class Task {
-  +description: String
-  +duration: int
-  +priority: String
-  +category: String
-  +editTask()
-  +getCriticalTask(): bool
-}
-
-class Scheduler {
-  +timeAvailable: float
-  +taskList: List~Task~
-  +addNewTask(task: Task)
-  +setDailyLimit(hours: float)
-  +editSchedule()
-  +generatePlan(owner: Owner, pets: List~Pet~): List~Task~
-}
-
-Owner "1" *-- "0..*" Pet : has
-Owner "1" o-- "0..*" Task : manages
-Owner "1" --> "1" Scheduler : uses
-Scheduler "1" --> "0..*" Task : selects/prioritizes
-Scheduler "1" ..> "0..*" Pet : considers needs
+---
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+- Did your design change during implementation? - If yes, describe at least one change and why you made it.
 Yep, it changed during implementation, I added a pet_name to 'Task' since its connected to a particular pet in case owner has multiple pets; this can avoid scheduling decisions confusion. Also added add_pet method into Owner so that their relationship (Owner has Pets) is represented.
 Then I linked Owner and Scheduler with Owner.tasks instance to avoid a logic bottleneck where Owner.tasks and Scheduler.task_list could drift out of sync possibly
 
@@ -86,8 +40,7 @@ Contrainsts scheduler considered: time first and priority as top, then completed
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
-One key tradeoff is in conflict detection: I only check for exact HH:MM time matches instead of full overlapping durations (for example, 08:30-09:00 overlapping with 08:45-09:15). That means the system can miss some real conflicts, but it stays lightweight and easy to reason about.
-This is reasonable for this scenario because PawPal needs fast, understandable warnings rather than heavy calendar-style logic. The simple check gives useful alerts without making the scheduling code too complex for this project scope.
+A key tradeoff I made in the Scheduler was in conflict detection. I only check for exact HH:MM time matches instead of full overlapping durations (for eg, 08:30-09:00 overlapping with 08:45-09:15). This means the system can miss some real conflicts, but it stays lightweight and easy to reason about. This is reasonable for this scenario because I think PawPal needs fast, understandable warnings rather than heavy calendar-style logic. The simple check can give useful alerts without making the scheduling code look too complex for this project scope
 
 ---
 
@@ -97,41 +50,27 @@ This is reasonable for this scenario because PawPal needs fast, understandable w
 
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
-I used VS Code Copilot in multiple modes depending on the phase. In design mode, I used chat to pressure-test my class boundaries and method responsibilities before writing full logic. During implementation, I used Copilot to draft method scaffolds, edge-case checks, and cleaner function naming. In testing/debugging, I used Copilot to suggest test cases, diagnose import issues, and validate whether failures came from test assumptions or scheduler behavior.
-
-The most helpful prompts were specific and constraint-based, for example: "Given this scheduler rule, what are the highest-risk edge cases?" and "Does this method introduce coupling between Owner and Scheduler?" Prompts that included expected behavior, not just code requests, gave the best results.
+I used VSC Copilot in multiple(plan or ask or agent) modes depending on the phase I was it, In design mode, I mostly used chat to test my classes and methods and responsibilities before writing full logic. During implementation, I used inline chat to draft method scaffolds, edge-case checks, and cleaner function naming. In testing/debugging, I used it to suggest test cases, edge cases, repair import issues, and validate if the errors came from test assumptions or scheduler behavior
+Hlpful prompts were when I could be specific and constraint-based, like 'Given this scheduler rule, what are the highest-risk edge cases?' and 'Does this method introduce coupling between Owner and Scheduler?' Prompts that included expected behavior and in ask mode gave the best results in my opinion
 
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
-One example was when AI suggested a more compact, Pythonic refactor of my conflict-detection method (using `defaultdict` and tighter inline expressions). I reviewed it, compared it with my current version, and decided not to adopt it fully because my explicit step-by-step version was easier to read and explain for this project. I verified that decision by running my tests and terminal demo to confirm the current method still produced correct conflict warnings and kept the logic easy to follow.
-
-Another case was with architecture suggestions that mixed storage ownership between `Owner` and `Scheduler`. I modified that suggestion to keep the source of truth with pet-attached tasks and let `Scheduler` compute plans from owner data. I verified this by checking method responsibilities (`get_all_tasks`, `retrieve_tasks_from_owner`, `generate_plan`) and rerunning tests after each change.
+One was when coppilot suggested a pythonic refactor of my conflict-detection method, using 'defaultdict' and tighter inline expressions. I reviewed it, and compared it with my current version, and decided not to adopt it fully because my step-by-step version was easier to read and explain for this project. I verified by running my tests and terminal demo to confirm the current method still produced correct conflict warnings and kept the logic easy to follow
+Also with architecture suggestions that mixed storage ownership between Owner and Scheduler, I modified to keep truth with pet-attached tasks and let Scheduler compute plans from owner data. I verified this by checking method responsibilities (get_all_tasks, retrieve_tasks_from_owner, generate_plan) and rerunning tests after each change
 
 **c. Prompt Comparison (Two-Model Evaluation)**
 
 I compared two model answers for weekly task rescheduling.
+Prompt I used:-
+'Design a simple, modular Python solution to reschedule weekly pet tasks after completion.'
+Model 1: GPT-5.3-Codex (OpenAI)
+Model 2: Claude (Anthropic)
+I found GPT-5.3-Codex gave better answer/response for my codebase.
+It split the logic into cleaner steps and kept Owner and Scheduler roles clear and was also esier to read. Claude's answer also was good, but it had more branching in one place and felt less clean.
 
-Prompt I used:
-"Design a simple, modular Python solution to reschedule weekly pet tasks after completion."
-
-- Model 1: GPT-5.3-Codex (OpenAI)
-- Model 2: Claude (Anthropic)
-
-I found GPT-5.3-Codex better for my codebase.
-
-- It split the logic into cleaner steps.
-- It kept `Owner` and `Scheduler` roles clear.
-- It was easier for me to test and read.
-
-Claude's answer worked, but it had more branching in one place and felt less clean.
-
-So I chose the GPT-5.3-Codex style because it felt more modular and more Pythonic in my project.
-
-Separate chat sessions for each project phase helped me stay organized because each thread had a single objective: design/UML, implementation, testing, and packaging. This reduced context drift, made prompts more precise, and made it easier to audit decisions when writing this reflection.
-
-The biggest lesson about being the lead architect is that AI is strongest as a fast design and coding collaborator, but I still own system coherence. I had to define constraints, reject over-complicated suggestions, and enforce consistency between UML, code, tests, and UI. The final quality came from human judgment plus AI acceleration, not from accepting suggestions blindly.
+The biggest lesson about being the lead architect is that AI is strongest as a fast design and coding collaborator, but I still own system coherence. I had to define constraints, reject over-complicated suggestions, and enforce consistency between UML, code, tests, and UI. The final quality came from human judgment plus AI acceleration, not from accepting suggestions blindly
 
 ---
 
@@ -141,28 +80,21 @@ The biggest lesson about being the lead architect is that AI is strongest as a f
 
 - What behaviors did you test?
 - Why were these tests important?
-I tested core scheduler behaviors that directly affect correctness and trust:
-
-- Chronological sorting behavior (`sort_by_time`) so users see tasks in expected order.
-- Recurrence logic for completed daily and weekly tasks so ongoing care tasks continue automatically.
-- Conflict detection for duplicate HH:MM times so owners get warnings when schedules clash.
-- Basic task lifecycle checks such as marking complete and adding tasks to a pet.
-
-These tests were important because they cover the central algorithmic contract of the app: selecting, ordering, and maintaining tasks safely across days.
+I tested core scheduler behaviors that directly affect accuracy and trust:
+I tested the chronological sorting behavior sort_by_time() so users see tasks in expected order then tested Recurrence logic for completed daily and weekly tasks so ongoing care tasks continue automatically. Then tested conflict detection for duplicate HH:MM times so owners get warnings when schedules clash and also did lifecycle checks such as marking complete and adding tasks to a pet. These tests were important because they cover the central algorithmic contract of the app: selecting, ordering, and maintaining tasks safely across days
 
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
-My confidence level is **4/5**. The current suite validates the most important scheduling rules and passed consistently with `python -m pytest`.
+My confidence level is 4/5. The current suite validates the most important scheduling rules and passed consistently 
 
-If I had more time, I would add edge-case tests for:
-
-- A pet with zero tasks.
-- Multiple tasks sharing the same timestamp for one pet vs across pets.
-- Invalid time strings and malformed input combinations.
-- Boundary time budgets (exact-fit minutes vs one-minute overflow).
-- Overlapping-duration conflicts (not just exact same start times).
+If I had more time, I would add edge-case tests for:-
+A pet with zero tasks
+Multiple tasks sharing the same timestamp for one pet vs across pets
+Invalid time strings and malformed input combinations
+Boundary time budgets (exact-fit minutes vs one-minute overflow)
+Overlapping-duration conflicts (not just exact same start times)
 
 ---
 
@@ -171,17 +103,17 @@ If I had more time, I would add edge-case tests for:
 **a. What went well**
 
 - What part of this project are you most satisfied with?
-I am most satisfied with how the algorithmic layer stayed clean while still becoming meaningfully smarter. I added sorting, filtering, recurrence, and conflict warnings without turning the project into an over-engineered calendar system.
+I am most satisfied with how the algorithmic layer stayed clean while still becoming meaningfully smarter. I added sorting, filtering, recurrence, and conflict warnings without turning the project into an over-engineered calendar system
 
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
-In the next iteration, I would improve conflict handling from exact-time detection to duration-overlap detection and add in-UI conflict resolution helpers (for example, quick edit controls for conflicting task times). I would also expand test coverage around negative/invalid inputs and long-term recurrence behavior.
+In the next iteration, I'll improve conflict handling from exact-time detection to duration-overlap detection and add in-UI conflict resolution helpers (like quick edit controls for conflicting task times). I'll also expand test coverage around negative/invalid inputs and long-term recurrence behavior
 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
-My key takeaway is that strong AI collaboration depends on clear architectural intent. When I treated Copilot as a junior pair programmer and kept myself in the lead architect role, I got faster implementation without sacrificing design clarity or system reliability.
+My key takeaway is that strong AI collaboration depends on clear architectural intent. When I treated Copilot as a jr pair programmer and kept myself in the lead architect role, I got faster implementation without sacrificing design clarity or system reliability
 
 ## 📸 Demo
 
