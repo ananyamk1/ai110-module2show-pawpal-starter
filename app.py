@@ -100,6 +100,7 @@ if owner.pets:
     with st.form("add_task_form", clear_on_submit=True):
         task_title = st.text_input("Task title", value="Morning walk")
         duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
+        task_time = st.text_input("Scheduled time (HH:MM, optional)", value="")
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
         frequency = st.selectbox("Frequency", ["daily", "weekly", "as needed"], index=0)
         category = st.text_input("Category", value="general")
@@ -107,33 +108,65 @@ if owner.pets:
         add_task_clicked = st.form_submit_button("Add task")
 
     if add_task_clicked:
-        owner.add_new_task(
-            Task(
-                description=task_title.strip() or "Untitled task",
-                duration=int(duration),
-                priority=priority,
-                frequency=frequency,
-                category=category.strip() or "general",
-            ),
-            pet_name=pet_choice,
-        )
-        st.success(f"Added task '{task_title.strip() or 'Untitled task'}' for {pet_choice}.")
+        normalized_time = task_time.strip() or None
+        if normalized_time is not None and not Task.is_valid_time_format(normalized_time):
+            st.error("Task time must use HH:MM 24-hour format (example: 08:30).")
+        else:
+            owner.add_new_task(
+                Task(
+                    description=task_title.strip() or "Untitled task",
+                    duration=int(duration),
+                    time=normalized_time,
+                    priority=priority,
+                    frequency=frequency,
+                    category=category.strip() or "general",
+                ),
+                pet_name=pet_choice,
+            )
+            st.success(f"Added task '{task_title.strip() or 'Untitled task'}' for {pet_choice}.")
 else:
     st.info("Add a pet first before scheduling tasks.")
+
+all_tasks = owner.get_all_tasks(include_completed=True)
+
+st.markdown("### Task Insights")
+if all_tasks:
+    include_completed = st.checkbox("Include completed tasks", value=True)
+    selected_pet = st.selectbox("Filter by pet", ["All pets"] + [pet.name for pet in owner.pets])
+
+    filtered_tasks = owner.scheduler.filter_tasks(
+        all_tasks,
+        completed=None if include_completed else False,
+        pet_name=None if selected_pet == "All pets" else selected_pet,
+    )
+
+    chronological_tasks = owner.scheduler.sort_by_time(filtered_tasks)
+    conflict_warnings = owner.scheduler.detect_time_conflicts(chronological_tasks)
+
+    if conflict_warnings:
+        st.warning("Schedule conflicts detected. Review overlapping time slots below.")
+        for warning in conflict_warnings:
+            st.warning(warning)
+    else:
+        st.success("No same-time conflicts detected for the current task view.")
+else:
+    st.info("No task insights yet. Add tasks to see sorting and conflict checks.")
 
 task_rows = [
     {
         "pet": task.pet_name,
         "title": task.description,
+        "time": task.time or "--:--",
         "duration_minutes": task.duration,
         "priority": task.priority,
+        "frequency": task.frequency,
         "completed": task.completed,
     }
-    for task in owner.get_all_tasks()
+    for task in owner.scheduler.sort_by_time(owner.get_all_tasks())
 ]
 
 if task_rows:
-    st.write("Current tasks:")
+    st.write("Current tasks (chronological):")
     st.table(task_rows)
 else:
     st.info("No tasks yet. Add one above.")
@@ -145,6 +178,13 @@ st.caption("Generate a plan using the scheduler in your logic layer.")
 
 if st.button("Generate schedule"):
     schedule = owner.generate_plan()
+    plan_conflicts = owner.scheduler.detect_time_conflicts(schedule)
+
+    if plan_conflicts:
+        st.warning("Heads up: your generated plan still has same-time task conflicts.")
+        for warning in plan_conflicts:
+            st.warning(warning)
+
     if not schedule:
         st.warning("No tasks fit in the current daily time window.")
     else:

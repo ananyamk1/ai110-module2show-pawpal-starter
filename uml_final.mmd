@@ -1,0 +1,70 @@
+classDiagram
+direction LR
+
+class Owner {
+  +name: str
+  +daily_time_available: float
+  +pets: List~Pet~
+  +scheduler: Scheduler
+  +add_pet(pet: Pet)
+  +get_pet(pet_name: str) Pet
+  +add_new_task(task: Task, pet_name: Optional~str~)
+  +get_all_tasks(include_completed: bool) List~Task~
+  +generate_plan() List~Task~
+  +mark_task_complete(task: Task) Optional~Task~
+  +explain_plan() str
+}
+
+class Pet {
+  +name: str
+  +species: str
+  +energy_level: str
+  +dietary_needs: str
+  +medical_needs: str
+  +other_notes: str
+  +tasks: List~Task~
+  +update_profile(...)
+  +get_needs_summary() str
+  +add_task(task: Task)
+  +get_tasks(include_completed: bool) List~Task~
+}
+
+class Task {
+  +description: str
+  +duration: int
+  +time: Optional~str~
+  +due_date: Optional~date~
+  +frequency: str
+  +completed: bool
+  +priority: str
+  +category: str
+  +pet_name: Optional~str~
+  +edit_task(...)
+  +get_critical_task() bool
+  +mark_complete()
+  +mark_incomplete()
+  +is_valid_time_format(time_value: str) bool
+}
+
+class Scheduler {
+  +time_available: float
+  +task_list: List~Task~
+  +last_plan: List~Task~
+  +last_warnings: List~str~
+  +add_new_task(task: Task)
+  +set_daily_limit(hours: float)
+  +edit_schedule(tasks: List~Task~)
+  +retrieve_tasks_from_owner(owner: Owner, include_completed: bool) List~Task~
+  +organize_tasks(tasks: List~Task~) List~Task~
+  +sort_by_time(tasks: List~Task~) List~Task~
+  +filter_tasks(tasks: List~Task~, completed: Optional~bool~, pet_name: Optional~str~) List~Task~
+  +mark_task_complete(owner: Owner, task: Task) Optional~Task~
+  +detect_time_conflicts(tasks: List~Task~) List~str~
+  +generate_plan(owner: Owner) List~Task~
+}
+
+Owner "1" *-- "0..*" Pet : has
+Pet "1" *-- "0..*" Task : owns
+Owner "1" --> "1" Scheduler : uses
+Scheduler ..> Owner : reads tasks
+Scheduler ..> Task : sorts/filters/plans

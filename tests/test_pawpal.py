@@ -120,3 +120,55 @@ def test_detect_time_conflicts_returns_warning_messages() -> None:
     assert "08:30" in warnings[0]
     assert "Morning Walk" in warnings[0]
     assert "Vet Call" in warnings[0]
+
+
+def test_find_next_available_slot_returns_earliest_gap() -> None:
+    owner = Owner(name="Jordan", daily_time_available=2.0)
+    tasks = [
+        Task(description="Morning Walk", duration=30, time="08:00"),
+        Task(description="Breakfast", duration=30, time="09:00"),
+    ]
+
+    slot = owner.scheduler.find_next_available_slot(
+        tasks,
+        required_duration=20,
+        day_start="07:00",
+        day_end="10:00",
+    )
+
+    assert slot == "07:00"
+
+
+def test_find_next_available_slot_merges_overlaps_before_searching_gap() -> None:
+    owner = Owner(name="Jordan", daily_time_available=2.0)
+    tasks = [
+        Task(description="Task A", duration=40, time="08:00"),
+        Task(description="Task B", duration=40, time="08:20"),
+        Task(description="Task C", duration=30, time="09:30"),
+    ]
+
+    slot = owner.scheduler.find_next_available_slot(
+        tasks,
+        required_duration=20,
+        day_start="08:00",
+        day_end="10:30",
+    )
+
+    assert slot == "09:00"
+
+
+def test_find_next_available_slot_returns_none_when_no_gap_fits() -> None:
+    owner = Owner(name="Jordan", daily_time_available=2.0)
+    tasks = [
+        Task(description="Task A", duration=60, time="08:00"),
+        Task(description="Task B", duration=60, time="09:00"),
+    ]
+
+    slot = owner.scheduler.find_next_available_slot(
+        tasks,
+        required_duration=30,
+        day_start="08:00",
+        day_end="10:00",
+    )
+
+    assert slot is None

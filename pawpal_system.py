@@ -169,6 +169,80 @@ class Scheduler:
             ),
         )
 
+    @staticmethod
+    def _time_to_minutes(time_value: str) -> int:
+        """Convert HH:MM 24-hour strings into minutes since midnight."""
+        if not Task.is_valid_time_format(time_value):
+            raise ValueError("Time must use HH:MM 24-hour format.")
+        hours, minutes = time_value.split(":")
+        return int(hours) * 60 + int(minutes)
+
+    @staticmethod
+    def _minutes_to_time(total_minutes: int) -> str:
+        """Convert minutes since midnight to HH:MM 24-hour strings."""
+        if not 0 <= total_minutes < 24 * 60:
+            raise ValueError("Minutes must be within a single day.")
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        return f"{hours:02d}:{minutes:02d}"
+
+    def find_next_available_slot(
+        self,
+        tasks: List[Task],
+        required_duration: int,
+        day_start: str = "06:00",
+        day_end: str = "22:00",
+    ) -> Optional[str]:
+        """Return the earliest available HH:MM slot that fits required minutes.
+
+        The algorithm treats tasks with explicit `time` values as occupied
+        intervals, merges overlaps, then scans for the first gap that can fit
+        `required_duration` minutes between `day_start` and `day_end`.
+        """
+        if required_duration <= 0:
+            raise ValueError("required_duration must be greater than 0.")
+
+        start_min = self._time_to_minutes(day_start)
+        end_min = self._time_to_minutes(day_end)
+        if start_min >= end_min:
+            raise ValueError("day_start must be earlier than day_end.")
+
+        busy_intervals: List[tuple[int, int]] = []
+        for task in tasks:
+            if task.time is None:
+                continue
+            task_start = self._time_to_minutes(task.time)
+            task_end = task_start + task.duration
+
+            # Keep only the part that overlaps with the planning window.
+            clipped_start = max(task_start, start_min)
+            clipped_end = min(task_end, end_min)
+            if clipped_start < clipped_end:
+                busy_intervals.append((clipped_start, clipped_end))
+
+        if not busy_intervals:
+            return day_start if start_min + required_duration <= end_min else None
+
+        busy_intervals.sort(key=lambda interval: interval[0])
+
+        merged: List[tuple[int, int]] = []
+        for current_start, current_end in busy_intervals:
+            if not merged or current_start > merged[-1][1]:
+                merged.append((current_start, current_end))
+            else:
+                merged_start, merged_end = merged[-1]
+                merged[-1] = (merged_start, max(merged_end, current_end))
+
+        cursor = start_min
+        for interval_start, interval_end in merged:
+            if cursor + required_duration <= interval_start:
+                return self._minutes_to_time(cursor)
+            cursor = max(cursor, interval_end)
+
+        if cursor + required_duration <= end_min:
+            return self._minutes_to_time(cursor)
+        return None
+
     def filter_tasks(
         self,
         tasks: List[Task],

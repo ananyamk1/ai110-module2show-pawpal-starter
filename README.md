@@ -50,8 +50,25 @@ The scheduler now includes lightweight algorithmic improvements for day-to-day p
 - Flexible filtering by completion status and pet (`Scheduler.filter_tasks`)
 - Recurring task rollover for daily and weekly tasks when completed
 - Conflict warnings when multiple tasks share the same scheduled time
+- Next available slot search that scans merged busy intervals to find the earliest valid gap (`Scheduler.find_next_available_slot`)
 
 These features are designed to stay readable and easy to test while still improving schedule quality.
+
+## Agent Mode Implementation Notes
+
+Agent Mode was used to implement the advanced scheduling capability in a structured way:
+
+1. Inspected the existing scheduler code and tests to avoid regressions.
+2. Added a new interval-based algorithm (`Scheduler.find_next_available_slot`) that:
+	- Converts `HH:MM` values into minutes
+	- Clips task intervals to a planning window
+	- Merges overlaps
+	- Scans for the first gap large enough for a requested duration
+3. Added targeted tests in `tests/test_pawpal.py` to validate:
+	- Earliest-gap detection
+	- Overlap merging behavior
+	- No-gap scenarios returning `None`
+4. Ran the full test suite to confirm compatibility with the existing behaviors.
 
 ## Testing PawPal+
 
@@ -66,6 +83,7 @@ Current tests focus on the core scheduling behaviors:
 - Sorting correctness for chronological task order (`Scheduler.sort_by_time`)
 - Recurrence logic for daily and weekly task rollover when completed
 - Conflict detection for duplicate scheduled times
+- Next available slot detection with interval merging and gap checks
 - Basic task completion and task assignment behaviors
 
 Confidence Level: ★★★★☆ (4/5)
