@@ -7,6 +7,61 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+3 Core Actions -
+1)Create Profiles/Accounts(Owner & Pet): Registree should input here their constraints of the day ("I only have 2 hours today") and the specific needs for their pet ("Cheetos is a energtic Golden Retriever")
+2)Manage Tasks planned: Create, edit, prioritize specific activities like Morning Walk or Monthly Grooming with assigned importance: Essential vs. Optional or High Imp, Low Imp, etc
+3)Generate Daily Schedule: Trigger a scheduling notification that selects the best tasks to fit within the registree's time window, prioritizing high-impact needs first
+
+The initial 4 Classes for system design and their actions:-
+Pet -  Name, Species, energy levels, dietary needs, medical needs, other [Methods - update profile, get needs summary]
+Tasks - description, duration, priority, category [classDiagram
+direction LR
+
+class Owner {
+  +name: String
+  +dailyTimeAvailable: float
+  +addNewTask(task: Task)
+  +generatePlan(scheduler: Scheduler)
+  +explainPlan()
+}
+
+class Pet {
+  +name: String
+  +species: String
+  +energyLevel: String
+  +dietaryNeeds: String
+  +medicalNeeds: String
+  +otherNotes: String
+  +updateProfile()
+  +getNeedsSummary(): String
+}
+
+class Task {
+  +description: String
+  +duration: int
+  +priority: String
+  +category: String
+  +editTask()
+  +getCriticalTask(): bool
+}
+
+class Scheduler {
+  +timeAvailable: float
+  +taskList: List~Task~
+  +addNewTask(task: Task)
+  +setDailyLimit(hours: float)
+  +editSchedule()
+  +generatePlan(owner: Owner, pets: List~Pet~): List~Task~
+}
+
+Owner "1" *-- "0..*" Pet : has
+Owner "1" o-- "0..*" Task : manages
+Owner "1" --> "1" Scheduler : uses
+Scheduler "1" --> "0..*" Task : selects/prioritizes
+Scheduler "1" ..> "0..*" Pet : considers needsMethods - edit task, get critical task]
+Scheduler - time available, task list, add new tasks, get/generate plan [Methods - set daily limit, edit schedule]
+Owner - Name, daily time available [Methods - add new task, generate plan, explain plan]
+
 **b. Design changes**
 
 - Did your design change during implementation?
