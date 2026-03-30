@@ -109,6 +109,26 @@ One example was when AI suggested a more compact, Pythonic refactor of my confli
 
 Another case was with architecture suggestions that mixed storage ownership between `Owner` and `Scheduler`. I modified that suggestion to keep the source of truth with pet-attached tasks and let `Scheduler` compute plans from owner data. I verified this by checking method responsibilities (`get_all_tasks`, `retrieve_tasks_from_owner`, `generate_plan`) and rerunning tests after each change.
 
+**c. Prompt Comparison (Two-Model Evaluation)**
+
+I compared two model answers for weekly task rescheduling.
+
+Prompt I used:
+"Design a simple, modular Python solution to reschedule weekly pet tasks after completion."
+
+- Model 1: GPT-5.3-Codex (OpenAI)
+- Model 2: Claude (Anthropic)
+
+I found GPT-5.3-Codex better for my codebase.
+
+- It split the logic into cleaner steps.
+- It kept `Owner` and `Scheduler` roles clear.
+- It was easier for me to test and read.
+
+Claude's answer worked, but it had more branching in one place and felt less clean.
+
+So I chose the GPT-5.3-Codex style because it felt more modular and more Pythonic in my project.
+
 Separate chat sessions for each project phase helped me stay organized because each thread had a single objective: design/UML, implementation, testing, and packaging. This reduced context drift, made prompts more precise, and made it easier to audit decisions when writing this reflection.
 
 The biggest lesson about being the lead architect is that AI is strongest as a fast design and coding collaborator, but I still own system coherence. I had to define constraints, reject over-complicated suggestions, and enforce consistency between UML, code, tests, and UI. The final quality came from human judgment plus AI acceleration, not from accepting suggestions blindly.

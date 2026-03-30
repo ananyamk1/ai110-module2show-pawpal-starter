@@ -1,9 +1,96 @@
 import streamlit as st
 from pawpal_system import Owner, Pet, Task
 
+
+DATA_FILE = "data.json"
+
+
+PRIORITY_BADGES = {
+    "high": "🔴 High",
+    "medium": "🟠 Medium",
+    "low": "🟡 Low",
+}
+
+STATUS_BADGES = {
+    True: "✅ Done",
+    False: "🔷 Pending",
+}
+
+TASK_TYPE_EMOJIS = {
+    "feeding": "🍽️",
+    "exercise": "🐾",
+    "medical": "💊",
+    "grooming": "🛁",
+    "training": "🎯",
+    "enrichment": "🧩",
+    "general": "📌",
+}
+
+
+def task_type_label(task: Task) -> str:
+    category = task.category.strip().lower()
+    return f"{TASK_TYPE_EMOJIS.get(category, '📌')} {category.title()}"
+
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
+st.markdown(
+    """
+    <style>
+    :root {
+        --pp-blue-900: #0b3d5c;
+        --pp-blue-700: #005a9c;
+        --pp-blue-500: #2b7dbc;
+        --pp-green-700: #0b8f6a;
+        --pp-green-100: #e7f7f1;
+        --pp-blue-100: #eaf4ff;
+        --pp-neutral-50: #f7fbff;
+        --pp-text: #0b253a;
+    }
+
+    .stApp {
+        background: linear-gradient(180deg, var(--pp-blue-100) 0%, var(--pp-neutral-50) 55%, #ffffff 100%);
+        color: var(--pp-text);
+    }
+
+    h1, h2, h3 {
+        color: var(--pp-blue-900);
+    }
+
+    [data-testid="stMetricValue"], [data-testid="stMarkdownContainer"] {
+        color: var(--pp-text);
+    }
+
+    .stButton > button {
+        background: linear-gradient(135deg, var(--pp-blue-700), var(--pp-green-700));
+        color: white;
+        border: 0;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {
+        border: 1px solid #9bc2dc;
+    }
+
+    [data-testid="stTable"] table {
+        border: 1px solid #c7def0;
+    }
+
+    [data-testid="stTable"] th {
+        background-color: #dbeeff;
+        color: var(--pp-blue-900);
+    }
+
+    [data-testid="stTable"] td {
+        background-color: #ffffff;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("🐾 PawPal+")
+st.caption("Blue/Green accessibility-first planning dashboard")
 
 st.markdown(
     """
@@ -39,17 +126,35 @@ At minimum, your system should:
 
 st.divider()
 
+st.markdown("**Legend:** 🔴/🟠/🟡 Priority levels • ✅ Done • 🔷 Pending")
+
 st.subheader("Owner Setup")
-owner_name = st.text_input("Owner name", value="Jordan")
-daily_hours = st.number_input("Daily time available (hours)", min_value=0.5, max_value=12.0, value=2.0, step=0.5)
 
 # Persist app data across Streamlit reruns.
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner(name=owner_name, daily_time_available=float(daily_hours))
+    try:
+        st.session_state.owner = Owner.load_from_json(DATA_FILE)
+    except FileNotFoundError:
+        st.session_state.owner = Owner(name="Jordan", daily_time_available=2.0)
+    except ValueError:
+        st.session_state.owner = Owner(name="Jordan", daily_time_available=2.0)
+
+    st.session_state.owner_name = st.session_state.owner.name
+    st.session_state.daily_hours = float(st.session_state.owner.daily_time_available)
+
+owner_name = st.text_input("Owner name", key="owner_name")
+daily_hours = st.number_input(
+    "Daily time available (hours)",
+    min_value=0.5,
+    max_value=12.0,
+    step=0.5,
+    key="daily_hours",
+)
 
 owner: Owner = st.session_state.owner
 owner.name = owner_name
 owner.daily_time_available = float(daily_hours)
+owner.save_to_json(DATA_FILE)
 
 st.markdown("### Add a Pet")
 with st.form("add_pet_form", clear_on_submit=True):
@@ -74,6 +179,7 @@ if add_pet_clicked:
                     medical_needs=medical_needs.strip() or "None",
                 )
             )
+            owner.save_to_json(DATA_FILE)
             st.success(f"Added pet: {pet_name.strip()}")
         except ValueError as exc:
             st.warning(str(exc))
@@ -123,6 +229,7 @@ if owner.pets:
                 ),
                 pet_name=pet_choice,
             )
+            owner.save_to_json(DATA_FILE)
             st.success(f"Added task '{task_title.strip() or 'Untitled task'}' for {pet_choice}.")
 else:
     st.info("Add a pet first before scheduling tasks.")
@@ -154,13 +261,14 @@ else:
 
 task_rows = [
     {
+        "type": task_type_label(task),
         "pet": task.pet_name,
         "title": task.description,
         "time": task.time or "--:--",
         "duration_minutes": task.duration,
-        "priority": task.priority,
+        "priority": PRIORITY_BADGES.get(task.priority, task.priority.title()),
+        "status": STATUS_BADGES[task.completed],
         "frequency": task.frequency,
-        "completed": task.completed,
     }
     for task in owner.scheduler.sort_by_time(owner.get_all_tasks())
 ]
@@ -192,10 +300,12 @@ if st.button("Generate schedule"):
         st.table(
             [
                 {
+                    "type": task_type_label(task),
                     "pet": task.pet_name,
                     "task": task.description,
                     "duration_minutes": task.duration,
-                    "priority": task.priority,
+                    "priority": PRIORITY_BADGES.get(task.priority, task.priority.title()),
+                    "status": STATUS_BADGES[task.completed],
                 }
                 for task in schedule
             ]

@@ -1,40 +1,111 @@
 from pawpal_system import Owner, Pet, Task
+try:
+    from tabulate import tabulate
+except ModuleNotFoundError:  # pragma: no cover - exercised in runtime-only CLI flow
+    tabulate = None
+
+
+PRIORITY_BADGES = {
+    "high": "🔴 High",
+    "medium": "🟠 Medium",
+    "low": "🟡 Low",
+}
+
+STATUS_BADGES = {
+    True: "✅ Done",
+    False: "🔷 Pending",
+}
+
+TASK_TYPE_EMOJIS = {
+    "feeding": "🍽️",
+    "exercise": "🐾",
+    "medical": "💊",
+    "grooming": "🛁",
+    "training": "🎯",
+    "enrichment": "🧩",
+    "general": "📌",
+}
+
+
+def task_type_label(task: Task) -> str:
+    category = task.category.strip().lower()
+    return f"{TASK_TYPE_EMOJIS.get(category, '📌')} {category.title()}"
+
+
+def print_section(title: str) -> None:
+    print(f"\n{title}")
+    print("-" * 80)
+
+
+def render_table(rows: list[list[object]], headers: list[str]) -> str:
+    """Render table with tabulate when available, else plain aligned columns."""
+    if tabulate is not None:
+        return tabulate(rows, headers=headers, tablefmt="rounded_outline")
+
+    string_rows = [[str(cell) for cell in row] for row in rows]
+    widths = [len(header) for header in headers]
+    for row in string_rows:
+        for index, cell in enumerate(row):
+            widths[index] = max(widths[index], len(cell))
+
+    def format_row(columns: list[str]) -> str:
+        return " | ".join(col.ljust(widths[idx]) for idx, col in enumerate(columns))
+
+    divider = "-+-".join("-" * width for width in widths)
+    lines = [format_row(headers), divider]
+    lines.extend(format_row(row) for row in string_rows)
+    return "\n".join(lines)
 
 
 def print_schedule(schedule: list[Task]) -> None:
-    print("\nToday's Schedule")
-    print("-" * 56)
+    print_section("Today's Schedule")
     if not schedule:
         print("No tasks fit within today's available time.")
         return
 
-    total_minutes = 0
+    rows = []
+    total_minutes = sum(task.duration for task in schedule)
     for index, task in enumerate(schedule, start=1):
-        total_minutes += task.duration
-        pet_label = task.pet_name or "Unassigned"
-        print(
-            f"{index:>2}. {task.description:<20} | {task.duration:>3} min | "
-            f"{task.priority.capitalize():<6} | {task.frequency:<7} | {pet_label}"
+        rows.append(
+            [
+                index,
+                task_type_label(task),
+                task.description,
+                task.pet_name or "Unassigned",
+                task.time or "--:--",
+                task.duration,
+                PRIORITY_BADGES.get(task.priority, task.priority.title()),
+                STATUS_BADGES[task.completed],
+            ]
         )
 
-    print("-" * 56)
+    print(render_table(rows, ["#", "Type", "Task", "Pet", "Time", "Minutes", "Priority", "Status"]))
+
     print(f"Total scheduled: {total_minutes} minutes")
 
 
 def print_task_list(title: str, tasks: list[Task]) -> None:
-    print(f"\n{title}")
-    print("-" * 74)
+    print_section(title)
     if not tasks:
         print("No tasks to show.")
         return
 
+    rows = []
     for index, task in enumerate(tasks, start=1):
-        time_label = task.time if task.time is not None else "--:--"
-        pet_label = task.pet_name or "Unassigned"
-        status_label = "done" if task.completed else "pending"
-        print(
-            f"{index:>2}. {time_label} | {task.description:<18} | {pet_label:<8} | {status_label:<7} | {task.duration:>3} min"
+        rows.append(
+            [
+                index,
+                task_type_label(task),
+                task.description,
+                task.pet_name or "Unassigned",
+                task.time or "--:--",
+                task.duration,
+                PRIORITY_BADGES.get(task.priority, task.priority.title()),
+                STATUS_BADGES[task.completed],
+            ]
         )
+
+    print(render_table(rows, ["#", "Type", "Task", "Pet", "Time", "Minutes", "Priority", "Status"]))
 
 
 def main() -> None:
@@ -100,25 +171,23 @@ def main() -> None:
     print_task_list("Filtered: Completed Tasks", completed_tasks)
 
     conflict_warnings = owner.scheduler.detect_time_conflicts(all_tasks)
-    print("\nConflict Warnings")
-    print("-" * 74)
+    print_section("Conflict Warnings")
     if not conflict_warnings:
-        print("No time conflicts detected.")
+        print("🟢 No time conflicts detected.")
     else:
         for warning in conflict_warnings:
-            print(warning)
+            print(f"🔵 {warning}")
 
     morning_walk = next(task for task in all_tasks if task.description == "Morning Walk")
     brush_coat = next(task for task in all_tasks if task.description == "Brush Coat")
     next_daily = owner.mark_task_complete(morning_walk)
     next_weekly = owner.mark_task_complete(brush_coat)
 
-    print("\nRecurring Task Auto-Creation")
-    print("-" * 74)
+    print_section("Recurring Task Auto-Creation")
     if next_daily is not None:
-        print(f"Created next daily task due on: {next_daily.due_date}")
+        print(f"🔷 Created next daily task due on: {next_daily.due_date}")
     if next_weekly is not None:
-        print(f"Created next weekly task due on: {next_weekly.due_date}")
+        print(f"🟩 Created next weekly task due on: {next_weekly.due_date}")
 
     schedule = owner.generate_plan()
     print_schedule(schedule)

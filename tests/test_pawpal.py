@@ -172,3 +172,72 @@ def test_find_next_available_slot_returns_none_when_no_gap_fits() -> None:
     )
 
     assert slot is None
+
+
+def test_organize_tasks_sorts_by_priority_then_time() -> None:
+    owner = Owner(name="Jordan", daily_time_available=2.0)
+    tasks = [
+        Task(description="Low Early", duration=20, time="07:30", priority="low"),
+        Task(description="High Later", duration=20, time="09:30", priority="high"),
+        Task(description="High Earlier", duration=20, time="08:00", priority="high"),
+        Task(description="Medium", duration=20, time="08:15", priority="medium"),
+    ]
+
+    ordered = owner.scheduler.organize_tasks(tasks)
+
+    assert [task.description for task in ordered] == [
+        "High Earlier",
+        "High Later",
+        "Medium",
+        "Low Early",
+    ]
+
+
+def test_owner_save_and_load_json_round_trip(tmp_path) -> None:
+    owner = Owner(name="Jordan", daily_time_available=3.5)
+    pet = Pet(
+        name="Bella",
+        species="Dog",
+        energy_level="High",
+        dietary_needs="Standard kibble",
+        medical_needs="None",
+    )
+    owner.add_pet(pet)
+    owner.add_new_task(
+        Task(
+            description="Morning Walk",
+            duration=30,
+            time="08:30",
+            due_date=date(2026, 3, 30),
+            frequency="daily",
+            completed=False,
+            priority="high",
+            category="exercise",
+        ),
+        pet_name="Bella",
+    )
+
+    data_path = tmp_path / "data.json"
+    owner.save_to_json(str(data_path))
+    loaded_owner = Owner.load_from_json(str(data_path))
+
+    assert loaded_owner.name == "Jordan"
+    assert loaded_owner.daily_time_available == 3.5
+    assert len(loaded_owner.pets) == 1
+    assert loaded_owner.pets[0].name == "Bella"
+
+    loaded_tasks = loaded_owner.get_all_tasks(include_completed=True)
+    assert len(loaded_tasks) == 1
+    assert loaded_tasks[0].description == "Morning Walk"
+    assert loaded_tasks[0].time == "08:30"
+    assert loaded_tasks[0].due_date == date(2026, 3, 30)
+
+
+def test_owner_load_from_json_raises_for_missing_file(tmp_path) -> None:
+    missing_path = tmp_path / "missing.json"
+
+    try:
+        Owner.load_from_json(str(missing_path))
+        assert False, "Expected FileNotFoundError for missing persistence file"
+    except FileNotFoundError:
+        assert True

@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+import json
+from pathlib import Path
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 
 
 @dataclass
@@ -64,6 +66,10 @@ class Task:
     category: str = "general"
     pet_name: Optional[str] = None
 
+    def __post_init__(self) -> None:
+        """Normalize and validate task priority after initialization."""
+        self.priority = self.normalize_priority(self.priority)
+
     def edit_task(
         self,
         description: Optional[str] = None,
@@ -91,7 +97,7 @@ class Task:
         if frequency is not None:
             self.frequency = frequency
         if priority is not None:
-            self.priority = priority
+            self.priority = Task.normalize_priority(priority)
         if category is not None:
             self.category = category
         if completed is not None:
@@ -116,6 +122,14 @@ class Task:
             return False
         hours, minutes = time_value.split(":")
         return 0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59
+
+    @staticmethod
+    def normalize_priority(priority_value: str) -> str:
+        """Return normalized priority and validate supported values."""
+        normalized = priority_value.strip().lower()
+        if normalized not in {"low", "medium", "high"}:
+            raise ValueError("Priority must be one of: low, medium, high.")
+        return normalized
 
 
 class Scheduler:
@@ -145,12 +159,21 @@ class Scheduler:
         return owner.get_all_tasks(include_completed=include_completed)
 
     def organize_tasks(self, tasks: List[Task]) -> List[Task]:
-        """Sort tasks by priority and then by shorter duration first."""
+        """Sort tasks by priority first, then by scheduled time.
+
+        Timed tasks are ordered before untimed tasks within each priority
+        level, and remaining ties use shorter duration first.
+        """
         priority_order = {"high": 0, "medium": 1, "low": 2}
 
         def sort_key(task: Task) -> tuple:
             priority_rank = priority_order.get(task.priority.strip().lower(), 3)
-            return (priority_rank, task.duration)
+            return (
+                priority_rank,
+                task.time is None,
+                task.time if task.time is not None else "99:99",
+                task.duration,
+            )
 
         return sorted(tasks, key=sort_key)
 
@@ -414,3 +437,109 @@ class Owner:
         total_minutes = sum(task.duration for task in self.scheduler.last_plan)
         plan_lines.append(f"Total scheduled time: {total_minutes} minutes")
         return "\n".join(plan_lines)
+
+    def save_to_json(self, file_path: str = "data.json") -> None:
+        """Persist owner, pets, and tasks into a JSON file."""
+        payload: dict[str, Any] = {
+            "name": self.name,
+            "daily_time_available": self.daily_time_available,
+            "pets": [
+                {
+                    "name": pet.name,
+                    "species": pet.species,
+                    "energy_level": pet.energy_level,
+                    "dietary_needs": pet.dietary_needs,
+                    "medical_needs": pet.medical_needs,
+                    "other_notes": pet.other_notes,
+                    "tasks": [
+                        {
+                            "description": task.description,
+                            "duration": task.duration,
+                            "time": task.time,
+                            "due_date": task.due_date.isoformat() if task.due_date else None,
+                            "frequency": task.frequency,
+                            "completed": task.completed,
+                            "priority": task.priority,
+                            "category": task.category,
+                            "pet_name": task.pet_name,
+                        }
+                        for task in pet.tasks
+                    ],
+                }
+                for pet in self.pets
+            ],
+        }
+
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    @classmethod
+    def load_from_json(cls, file_path: str = "data.json") -> "Owner":
+        """Load owner, pets, and tasks from a JSON file.
+
+        Raises FileNotFoundError when the file does not exist and ValueError
+        when the JSON content is not valid for Owner reconstruction.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"No data file found at '{file_path}'.")
+
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON file format.") from exc
+
+        if not isinstance(payload, dict):
+            raise ValueError("JSON root must be an object.")
+
+        owner = cls(
+            name=str(payload.get("name", "Jordan")),
+            daily_time_available=float(payload.get("daily_time_available", 2.0)),
+        )
+
+        pets_payload = payload.get("pets", [])
+        if not isinstance(pets_payload, list):
+            raise ValueError("'pets' must be a list.")
+
+        for pet_data in pets_payload:
+            if not isinstance(pet_data, dict):
+                raise ValueError("Each pet entry must be an object.")
+
+            pet = Pet(
+                name=str(pet_data.get("name", "Unnamed")),
+                species=str(pet_data.get("species", "other")),
+                energy_level=str(pet_data.get("energy_level", "medium")),
+                dietary_needs=str(pet_data.get("dietary_needs", "Not specified")),
+                medical_needs=str(pet_data.get("medical_needs", "None")),
+                other_notes=str(pet_data.get("other_notes", "")),
+            )
+            owner.add_pet(pet)
+
+            tasks_payload = pet_data.get("tasks", [])
+            if not isinstance(tasks_payload, list):
+                raise ValueError("'tasks' must be a list for each pet.")
+
+            for task_data in tasks_payload:
+                if not isinstance(task_data, dict):
+                    raise ValueError("Each task entry must be an object.")
+
+                due_date_raw = task_data.get("due_date")
+                parsed_due_date = date.fromisoformat(due_date_raw) if due_date_raw else None
+
+                owner.add_new_task(
+                    Task(
+                        description=str(task_data.get("description", "Untitled task")),
+                        duration=int(task_data.get("duration", 1)),
+                        time=task_data.get("time"),
+                        due_date=parsed_due_date,
+                        frequency=str(task_data.get("frequency", "daily")),
+                        completed=bool(task_data.get("completed", False)),
+                        priority=str(task_data.get("priority", "medium")),
+                        category=str(task_data.get("category", "general")),
+                        pet_name=str(task_data.get("pet_name", pet.name)),
+                    ),
+                    pet_name=pet.name,
+                )
+
+        return owner
