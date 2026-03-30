@@ -79,10 +79,15 @@ Then I linked Owner and Scheduler with Owner.tasks instance to avoid a logic bot
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+Contrainsts scheduler considered: time first and priority as top, then completed status. I chose to go with time and priority as the top most important because they directly affect whether the plan is both realistic and useful. A plan that ignores time is kinda impossible to follow, and a plan that ignores priority might miss the essential care tasks
+
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+One key tradeoff is that the scheduler uses a simple greedy strategy: it picks tasks in priority order and stops when time runs out. This can leave out some lower-priority tasks even if they are still valuable
+This tradeoff is resonates for this scenario because the user needs a quick, understandable daily plan, not like a complex optimization model. Prioritizing simplicity with speed will make the app easier to trust, debug, and use consistently
 
 ---
 
