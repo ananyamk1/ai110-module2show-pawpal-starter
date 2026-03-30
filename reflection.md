@@ -86,8 +86,8 @@ Contrainsts scheduler considered: time first and priority as top, then completed
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
-One key tradeoff is that the scheduler uses a simple greedy strategy: it picks tasks in priority order and stops when time runs out. This can leave out some lower-priority tasks even if they are still valuable
-This tradeoff is resonates for this scenario because the user needs a quick, understandable daily plan, not like a complex optimization model. Prioritizing simplicity with speed will make the app easier to trust, debug, and use consistently
+One key tradeoff is in conflict detection: I only check for exact HH:MM time matches instead of full overlapping durations (for example, 08:30-09:00 overlapping with 08:45-09:15). That means the system can miss some real conflicts, but it stays lightweight and easy to reason about.
+This is reasonable for this scenario because PawPal needs fast, understandable warnings rather than heavy calendar-style logic. The simple check gives useful alerts without making the scheduling code too complex for this project scope.
 
 ---
 
@@ -102,6 +102,7 @@ This tradeoff is resonates for this scenario because the user needs a quick, und
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+One example was when AI suggested a more compact, Pythonic refactor of my conflict-detection method (using `defaultdict` and tighter inline expressions). I reviewed it, compared it with my current version, and decided not to adopt it fully because my explicit step-by-step version was easier to read and explain for this project. I verified that decision by running my tests and terminal demo to confirm the current method still produced correct conflict warnings and kept the logic easy to follow.
 
 ---
 

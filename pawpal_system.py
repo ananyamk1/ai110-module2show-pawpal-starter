@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+from datetime import date, timedelta
+import re
 from typing import List, Optional
 
 
@@ -54,6 +56,8 @@ class Pet:
 class Task:
     description: str
     duration: int
+    time: Optional[str] = None
+    due_date: Optional[date] = None
     frequency: str = "daily"
     completed: bool = False
     priority: str = "medium"
@@ -64,6 +68,8 @@ class Task:
         self,
         description: Optional[str] = None,
         duration: Optional[int] = None,
+        time: Optional[str] = None,
+        due_date: Optional[date] = None,
         frequency: Optional[str] = None,
         priority: Optional[str] = None,
         category: Optional[str] = None,
@@ -76,6 +82,12 @@ class Task:
             if duration <= 0:
                 raise ValueError("Task duration must be greater than 0.")
             self.duration = duration
+        if time is not None:
+            if not Task.is_valid_time_format(time):
+                raise ValueError("Task time must use HH:MM 24-hour format.")
+            self.time = time
+        if due_date is not None:
+            self.due_date = due_date
         if frequency is not None:
             self.frequency = frequency
         if priority is not None:
@@ -97,6 +109,14 @@ class Task:
         """Mark this task as not completed."""
         self.completed = False
 
+    @staticmethod
+    def is_valid_time_format(time_value: str) -> bool:
+        """Return True when time string matches HH:MM in 24-hour format."""
+        if not re.fullmatch(r"\d{2}:\d{2}", time_value):
+            return False
+        hours, minutes = time_value.split(":")
+        return 0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59
+
 
 class Scheduler:
     def __init__(self, time_available: float) -> None:
@@ -104,6 +124,7 @@ class Scheduler:
         self.time_available = time_available
         self.task_list: List[Task] = []
         self.last_plan: List[Task] = []
+        self.last_warnings: List[str] = []
 
     def add_new_task(self, task: Task) -> None:
         """Add a task to the scheduler's internal task collection."""
@@ -133,10 +154,116 @@ class Scheduler:
 
         return sorted(tasks, key=sort_key)
 
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Return tasks ordered by HH:MM start time, then untimed tasks last.
+
+        This method expects `Task.time` values to be normalized as `HH:MM` in
+        24-hour format. Timed tasks are sorted lexicographically, which is
+        valid for zero-padded time strings.
+        """
+        return sorted(
+            tasks,
+            key=lambda task: (
+                task.time is None,
+                task.time if task.time is not None else "99:99",
+            ),
+        )
+
+    def filter_tasks(
+        self,
+        tasks: List[Task],
+        completed: Optional[bool] = None,
+        pet_name: Optional[str] = None,
+    ) -> List[Task]:
+        """Return tasks filtered by completion status and/or assigned pet.
+
+        Args:
+            tasks: Candidate tasks to filter.
+            completed: When provided, keep only tasks whose completed flag
+                matches this value.
+            pet_name: When provided, keep only tasks assigned to this pet.
+        """
+        filtered_tasks = list(tasks)
+        if completed is not None:
+            filtered_tasks = [task for task in filtered_tasks if task.completed == completed]
+        if pet_name is not None:
+            filtered_tasks = [task for task in filtered_tasks if task.pet_name == pet_name]
+        return filtered_tasks
+
+    def mark_task_complete(self, owner: "Owner", task: Task) -> Optional[Task]:
+        """Mark a task complete and spawn the next recurring instance when needed.
+
+        Daily tasks create a new task due tomorrow. Weekly tasks create a new
+        task due in seven days. Non-recurring frequencies are only marked
+        complete and return None.
+        """
+        task.mark_complete()
+
+        frequency_value = task.frequency.strip().lower()
+        recurrence_days = {"daily": 1, "weekly": 7}
+        if frequency_value not in recurrence_days:
+            return None
+
+        next_due_date = date.today() + timedelta(days=recurrence_days[frequency_value])
+        next_task = Task(
+            description=task.description,
+            duration=task.duration,
+            time=task.time,
+            due_date=next_due_date,
+            frequency=task.frequency,
+            completed=False,
+            priority=task.priority,
+            category=task.category,
+            pet_name=task.pet_name,
+        )
+
+        if task.pet_name:
+            owner.add_new_task(next_task, pet_name=task.pet_name)
+        else:
+            self.add_new_task(next_task)
+
+        return next_task
+
+    def detect_time_conflicts(self, tasks: List[Task]) -> List[str]:
+        """Return lightweight warning strings for same-time task conflicts.
+
+        This intentionally checks exact HH:MM matches only, which keeps runtime
+        and logic simple for daily planning. It does not compute overlapping
+        duration windows.
+        """
+        tasks_by_time: dict[str, List[Task]] = {}
+        for task in tasks:
+            if task.time is None:
+                continue
+            tasks_by_time.setdefault(task.time, []).append(task)
+
+        warnings: List[str] = []
+        for time_slot, slot_tasks in sorted(tasks_by_time.items()):
+            if len(slot_tasks) < 2:
+                continue
+
+            pet_names = sorted({task.pet_name or "Unassigned" for task in slot_tasks})
+            task_labels = [f"{task.description} ({task.pet_name or 'Unassigned'})" for task in slot_tasks]
+            if len(pet_names) == 1:
+                warning = (
+                    f"Warning: {len(slot_tasks)} tasks for {pet_names[0]} are scheduled at {time_slot}: "
+                    + ", ".join(task_labels)
+                )
+            else:
+                warning = (
+                    f"Warning: {len(slot_tasks)} tasks across pets are scheduled at {time_slot}: "
+                    + ", ".join(task_labels)
+                )
+            warnings.append(warning)
+
+        self.last_warnings = warnings
+        return warnings
+
     def generate_plan(self, owner: "Owner") -> List[Task]:
         """Build a daily task plan that fits within the available minutes."""
         available_minutes = int(self.time_available * 60)
         candidate_tasks = self.retrieve_tasks_from_owner(owner, include_completed=False)
+        self.detect_time_conflicts(candidate_tasks)
         ordered_tasks = self.organize_tasks(candidate_tasks)
 
         planned: List[Task] = []
@@ -191,6 +318,10 @@ class Owner:
         """Generate and return today's plan using this owner's scheduler."""
         self.scheduler.set_daily_limit(self.daily_time_available)
         return self.scheduler.generate_plan(self)
+
+    def mark_task_complete(self, task: Task) -> Optional[Task]:
+        """Complete a task and create the next recurring instance when applicable."""
+        return self.scheduler.mark_task_complete(self, task)
 
     def explain_plan(self) -> str:
         """Return a readable text explanation of the most recent plan."""
