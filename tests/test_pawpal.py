@@ -28,6 +28,24 @@ def test_add_task_to_pet_increases_task_count() -> None:
     assert after_count == before_count + 1
 
 
+def test_sort_by_time_returns_tasks_in_chronological_order() -> None:
+    owner = Owner(name="Jordan", daily_time_available=2.0)
+    tasks = [
+        Task(description="Lunch", duration=30, time="12:00"),
+        Task(description="Morning Walk", duration=30, time="08:30"),
+        Task(description="Evening Meds", duration=15, time="18:15"),
+    ]
+
+    ordered_tasks = owner.scheduler.sort_by_time(tasks)
+
+    assert [task.time for task in ordered_tasks] == ["08:30", "12:00", "18:15"]
+    assert [task.description for task in ordered_tasks] == [
+        "Morning Walk",
+        "Lunch",
+        "Evening Meds",
+    ]
+
+
 def test_mark_task_complete_creates_next_daily_task() -> None:
     owner = Owner(name="Jordan", daily_time_available=2.0)
     pet = Pet(

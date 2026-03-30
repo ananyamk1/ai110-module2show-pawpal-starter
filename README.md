@@ -52,3 +52,20 @@ The scheduler now includes lightweight algorithmic improvements for day-to-day p
 - Conflict warnings when multiple tasks share the same scheduled time
 
 These features are designed to stay readable and easy to test while still improving schedule quality.
+
+## Testing PawPal+
+
+Run the automated test suite with:
+
+```bash
+python -m pytest
+```
+
+Current tests focus on the core scheduling behaviors:
+
+- Sorting correctness for chronological task order (`Scheduler.sort_by_time`)
+- Recurrence logic for daily and weekly task rollover when completed
+- Conflict detection for duplicate scheduled times
+- Basic task completion and task assignment behaviors
+
+Confidence Level: ★★★★☆ (4/5)
