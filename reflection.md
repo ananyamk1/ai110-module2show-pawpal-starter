@@ -7,14 +7,18 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
-3 Core Actions -
+My initial UML design focused on three core user actions: creating profiles for the owner and pet, managing care tasks, and generating a daily schedule that fits limited time as follows:-
 1)Create Profiles/Accounts(Owner & Pet): Registree should input here their constraints of the day ("I only have 2 hours today") and the specific needs for their pet ("Cheetos is a energtic Golden Retriever")
 2)Manage Tasks planned: Create, edit, prioritize specific activities like Morning Walk or Monthly Grooming with assigned importance: Essential vs. Optional or High Imp, Low Imp, etc
 3)Generate Daily Schedule: Trigger a scheduling notification that selects the best tasks to fit within the registree's time window, prioritizing high-impact needs first
-
-The initial 4 Classes for system design and their actions:-
+I included 4 classes:-
 Pet -  Name, Species, energy levels, dietary needs, medical needs, other [Methods - update profile, get needs summary]
-Tasks - description, duration, priority, category [classDiagram
+Tasks - description, duration, priority, category [Methods - edit task, get critical task]
+Scheduler - time available, task list, add new tasks, get/generate plan [Methods - set daily limit, edit schedule]
+Owner - Name, daily time available [Methods - add new task, generate plan, explain plan]
+
+
+classDiagram
 direction LR
 
 class Owner {
@@ -58,16 +62,15 @@ Owner "1" *-- "0..*" Pet : has
 Owner "1" o-- "0..*" Task : manages
 Owner "1" --> "1" Scheduler : uses
 Scheduler "1" --> "0..*" Task : selects/prioritizes
-Scheduler "1" ..> "0..*" Pet : considers needsMethods - edit task, get critical task]
-Scheduler - time available, task list, add new tasks, get/generate plan [Methods - set daily limit, edit schedule]
-Owner - Name, daily time available [Methods - add new task, generate plan, explain plan]
+Scheduler "1" ..> "0..*" Pet : considers needs
 
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+Yep, it changed during implementation, I added a pet_name to 'Task' since its connected to a particular pet in case owner has multiple pets; this can avoid scheduling decisions confusion. Also added add_pet method into Owner so that their relationship (Owner has Pets) is represented.
+Then I linked Owner and Scheduler with Owner.tasks instance to avoid a logic bottleneck where Owner.tasks and Scheduler.task_list could drift out of sync possibly
 
----
 
 ## 2. Scheduling Logic and Tradeoffs
 

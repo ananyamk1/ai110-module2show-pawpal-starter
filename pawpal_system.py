@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
 
 
 @dataclass
@@ -24,6 +24,7 @@ class Task:
 	duration: int
 	priority: str
 	category: str
+	pet_name: Optional[str] = None
 
 	def edit_task(self) -> None:
 		pass
@@ -33,9 +34,10 @@ class Task:
 
 
 class Scheduler:
-	def __init__(self, time_available: float) -> None:
+	def __init__(self, time_available: float, task_list: Optional[List[Task]] = None) -> None:
 		self.time_available = time_available
-		self.task_list: List[Task] = []
+		# Share task storage with Owner to avoid duplicate sources of truth.
+		self.task_list: List[Task] = task_list if task_list is not None else []
 
 	def add_new_task(self, task: Task) -> None:
 		pass
@@ -56,11 +58,15 @@ class Owner:
 		self.daily_time_available = daily_time_available
 		self.pets: List[Pet] = []
 		self.tasks: List[Task] = []
+		self.scheduler = Scheduler(daily_time_available, self.tasks)
+
+	def add_pet(self, pet: Pet) -> None:
+		pass
 
 	def add_new_task(self, task: Task) -> None:
 		pass
 
-	def generate_plan(self, scheduler: Scheduler) -> List[Task]:
+	def generate_plan(self) -> List[Task]:
 		pass
 
 	def explain_plan(self) -> str:
